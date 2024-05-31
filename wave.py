@@ -4,7 +4,6 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
 from sklearn.preprocessing import LabelEncoder
-from sklearn.model_selection import train_test_split
 import math
 import os
 
@@ -37,6 +36,7 @@ ratings_df['item_id'] = item_encoder.fit_transform(ratings_df['ISBN'])
 ratings_train = ratings[0:919824]
 ratings_test = ratings[919825:].reset_index(drop=True)
 
+
 class RatingDataset(Dataset):
     def __init__(self, data):
         self.data = data
@@ -58,11 +58,9 @@ test_dataset = RatingDataset(ratings_test)
 train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True)
 test_loader = DataLoader(test_dataset, batch_size=64, shuffle=False)
 
-# dataset = RatingDataset(ratings)
-# dataloader = DataLoader(dataset, batch_size=64, shuffle=True)
-
 print(len(train_dataset))
 print(len(train_loader))
+
 
 class GMF(nn.Module):
     def __init__(self, num_users, num_items, embedding_size):
@@ -84,6 +82,8 @@ class GMF(nn.Module):
         output = self.output_layer(x)
         output = torch.sigmoid(output)  # Ensure output is between 0 and 1
         return output.view(-1)
+
+
 class MLP(nn.Module):
     def __init__(self, num_users, num_items, embedding_size, hidden_layers=[64, 32]):
         super(MLP, self).__init__()
@@ -106,6 +106,8 @@ class MLP(nn.Module):
         output = self.layers(concat_embed)
         output = torch.sigmoid(output)  # Ensure output is between 0 and 1
         return output.view(-1)
+
+
 class NCF(nn.Module):
     def __init__(self, gmf_model, mlp_model):
         super(NCF, self).__init__()
@@ -117,6 +119,8 @@ class NCF(nn.Module):
         mlp_output = self.mlp(user_ids, item_ids)
         combined_output = (gmf_output + mlp_output) / 2
         return combined_output
+
+
 num_users = len(ratings['User-ID'].unique())
 num_items = len(ratings['ISBN'].unique())
 embedding_size = 64
@@ -144,8 +148,6 @@ def train_gmf(model, dataloader, criterion, optimizer, num_epochs):
     for epoch in range(num_epochs):
         total_loss = 0.0
         i = 0
-        total_diff = 0
-        total_len = 0
         for batch in dataloader:
             user_ids = batch['user_id'].to(device)
             item_ids = batch['book_id'].to(device)
@@ -291,21 +293,18 @@ print('Evalution Measures:')
 print(f'Evaluation Loss: {avg_loss}, Average Difference: {avg_diff}, RMSE: {rmse}')
 
 users.head()
-users[users['User-ID'] == 104433]
 book_ratings = ratings_df.groupby('item_id')['Book-Rating'].mean().reset_index()
 book_ratings = book_ratings.sort_values(by='Book-Rating', ascending=False)
 top_64_books = book_ratings.head(64)
 print(top_64_books)
-user_id = 104433
+user_id = 56897
 user_id_tensor = torch.LongTensor([user_id] * 64).to(device)
 
 top_64_books = top_64_books['item_id'].tolist()
 item_ids_tensor = torch.LongTensor(top_64_books).to(device)
 
 print("User ID Tensor:", user_id_tensor)
-print("Top 10 Books Tensor:", item_ids_tensor)
-print(user_ids)
-print(item_ids)
+print("Top 64 Books Tensor:", item_ids_tensor)
 
 predictions = model(user_id_tensor, item_ids_tensor)
 
@@ -319,5 +318,6 @@ top_3_indices = [idx for idx, _ in sorted_predictions[:3]]
 
 # Get the top 3 book ISBNs
 top_3_book_isbns = [item_ids_tensor[idx].item() for idx in top_3_indices]
+top_3 = item_encoder.inverse_transform(top_3_book_isbns)
 
-print("Top 3 Book ISBNs:", top_3_book_isbns)
+print("Top 3 Book ISBNs:", top_3)
