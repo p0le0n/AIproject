@@ -7,7 +7,7 @@ from sklearn.preprocessing import LabelEncoder
 import math
 import os
 
-# Set the TORCH_USE_CUDA_DSA environment variable
+# Установка переменной окружения
 os.environ["TORCH_USE_CUDA_DSA"] = "1"
 
 books = pd.read_csv("Books.csv", low_memory=False)
@@ -21,15 +21,14 @@ users_df = pd.read_csv("Users.csv", low_memory=False)
 device = "cuda" if torch.cuda.is_available() else "cpu"
 print(device)
 
-# Initialize LabelEncoders for user and item IDs
+# Инициализация LabelEncoder для пользователей и предметов
 user_encoder = LabelEncoder()
 item_encoder = LabelEncoder()
 
-# Fit and transform user and item IDs
+# Обучение и трансформация идентификаторов пользователей и предметов
 ratings['user_id'] = user_encoder.fit_transform(ratings['User-ID'])
 ratings['item_id'] = item_encoder.fit_transform(ratings['ISBN'])
 
-# Fit and transform user and item IDs
 ratings_df['user_id'] = user_encoder.fit_transform(ratings_df['User-ID'])
 ratings_df['item_id'] = item_encoder.fit_transform(ratings_df['ISBN'])
 
@@ -50,11 +49,11 @@ class RatingDataset(Dataset):
             'book_id': self.data['item_id'][idx],
             'rating': self.data['Book-Rating'][idx]
         }
-# Instantiate train and test datasets
+# Создание обучающего и тестового наборов данных
 train_dataset = RatingDataset(ratings_train)
 test_dataset = RatingDataset(ratings_test)
 
-# Create train and test loaders
+# Создание загрузчиков данных для обучающего и тестового наборов
 train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True)
 test_loader = DataLoader(test_dataset, batch_size=64, shuffle=False)
 
@@ -80,7 +79,7 @@ class GMF(nn.Module):
         x = self.relu(x)
         x = self.dropout(x)
         output = self.output_layer(x)
-        output = torch.sigmoid(output)  # Ensure output is between 0 and 1
+        output = torch.sigmoid(output)
         return output.view(-1)
 
 
@@ -104,7 +103,7 @@ class MLP(nn.Module):
         item_embed = self.item_embedding(item_ids)
         concat_embed = torch.cat((user_embed, item_embed), dim=1)
         output = self.layers(concat_embed)
-        output = torch.sigmoid(output)  # Ensure output is between 0 and 1
+        output = torch.sigmoid(output)
         return output.view(-1)
 
 
@@ -128,19 +127,15 @@ hidden_layers = [128, 64, 32]
 print(num_users)
 print(num_items)
 
-# Initialize GMF model
+# Инициализация моделей GMF и MLP
 gmf_model = GMF(num_users, num_items, embedding_size).to(device)
-
-# Initialize MLP model
 mlp_model = MLP(num_users, num_items, embedding_size, hidden_layers).to(device)
 
-# Loss criterion for GMF and MLP models
+# Критерий потерь для моделей GMF и MLP
 models_criterion = nn.MSELoss()
 
-# Optimizer for GMF model
+# Оптимизаторы для моделей GMF и MLP
 gmf_optimizer = optim.Adam(gmf_model.parameters(), lr=0.001)
-
-# Optimizer for MLP model
 mlp_optimizer = optim.Adam(mlp_model.parameters(), lr=0.001)
 
 
@@ -200,9 +195,8 @@ def train_mlp(model, dataloader, criterion, optimizer, num_epochs):
 
 num_epochs = 5
 
-# Check if the model parameter files exist
+# Проверяем наличие файлов с параметрами моделей
 if os.path.isfile('gmf_model.pth') and os.path.isfile('mlp_model.pth'):
-    # Load the parameters from files
     gmf_model.load_state_dict(torch.load('gmf_model.pth'))
     mlp_model.load_state_dict(torch.load('mlp_model.pth'))
 
@@ -210,14 +204,13 @@ if os.path.isfile('gmf_model.pth') and os.path.isfile('mlp_model.pth'):
     gmf_model.eval()
     mlp_model.eval()
 else:
-    # Train the models if the parameter files don't exist
+    # Обучаем модели, если файлы параметров не существуют
     print("Training GMF...")
     train_gmf(gmf_model, train_loader, models_criterion, gmf_optimizer, num_epochs)
 
     print("Training MLP...")
     train_mlp(mlp_model, train_loader, models_criterion, mlp_optimizer, num_epochs)
 
-    # Save the trained model parameters
     torch.save(gmf_model.state_dict(), 'gmf_model.pth')
     torch.save(mlp_model.state_dict(), 'mlp_model.pth')
 
@@ -225,15 +218,11 @@ model = NCF(gmf_model, mlp_model)
 criterion = nn.MSELoss()
 optimizer = optim.Adam(model.parameters(), lr=0.001)
 
-# Проверяем наличие файлов с параметрами моделей
 if os.path.isfile('ncf_model.pth'):
-    # Если файл существует, загружаем параметры модели из него
     model.load_state_dict(torch.load('ncf_model.pth'))
 
-    # Устанавливаем модель в режим оценки
     model.eval()
 else:
-    # Если файл не существует, обучаем модель заново
     print("Training NCF...")
     num_epochs = 10
     for epoch in range(num_epochs):
@@ -310,13 +299,13 @@ predictions = model(user_id_tensor, item_ids_tensor)
 
 indexed_predictions = [(idx, pred) for idx, pred in enumerate(predictions)]
 
-# Sort the indexed predictions by the prediction values in descending order
+# Сортируем индексированные предсказания по значениям предсказаний в порядке убывания
 sorted_predictions = sorted(indexed_predictions, key=lambda x: x[1], reverse=True)
 
-# Get the top 3 indices
+# Получаем топ 3 индекса
 top_3_indices = [idx for idx, _ in sorted_predictions[:3]]
 
-# Get the top 3 book ISBNs
+# Получаем топ 3 ISBN книг
 top_3_book_isbns = [item_ids_tensor[idx].item() for idx in top_3_indices]
 top_3 = item_encoder.inverse_transform(top_3_book_isbns)
 
